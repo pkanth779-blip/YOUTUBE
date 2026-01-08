@@ -4,7 +4,7 @@ exports.handler = async (event, context) => {
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Content-Type': 'application/json'
     };
 
@@ -12,7 +12,7 @@ exports.handler = async (event, context) => {
         return { statusCode: 200, headers, body: '' };
     }
 
-    const { videoId, quality, format } = event.queryStringParameters;
+    const { videoId, quality, format } = event.queryStringParameters || JSON.parse(event.body || '{}');
 
     if (!videoId) {
         return {
@@ -25,64 +25,64 @@ exports.handler = async (event, context) => {
     try {
         const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        // Use a third-party API for downloads
-        // Option 1: Try using loader.to API (free, no auth needed)
-        const apiUrl = `https://loader.to/ajax/download.php?format=${format}&url=${encodeURIComponent(youtubeUrl)}&api=dfcb6d76f2f6a9894gjkege8a4ab232222`;
-
-        const response = await fetch(apiUrl, {
+        // Step 1: Get video info from yt1s.io
+        const analyzeResponse = await fetch('https://yt1s.io/api/ajaxSearch/index', {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
+            },
+            body: `q=${encodeURIComponent(youtubeUrl)}&vt=${format === 'mp3' ? 'mp3' : 'mp4'}`
         });
 
-        const data = await response.json();
+        const analyzeData = await analyzeResponse.json();
 
-        if (data.success && data.download) {
+        if (analyzeData.status !== 'ok') {
+            throw new Error('Failed to analyze video');
+        }
+
+        // Step 2: Get the download link
+        const kValue = analyzeData.links[format === 'mp3' ? 'mp3' : 'mp4'][quality] ||
+            Object.values(analyzeData.links[format === 'mp3' ? 'mp3' : 'mp4'])[0];
+
+        if (!kValue || !kValue.k) {
+            throw new Error('Quality not available');
+        }
+
+        const convertResponse = await fetch('https://yt1s.io/api/ajaxConvert/convert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: `vid=${videoId}&k=${kValue.k}`
+        });
+
+        const convertData = await convertResponse.json();
+
+        if (convertData.status === 'ok' && convertData.dlink) {
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
                     success: true,
-                    downloadUrl: data.download,
-                    quality: quality,
+                    downloadUrl: convertData.dlink,
+                    quality: kValue.q || quality,
                     format: format
                 })
             };
         }
 
-        // Fallback: Return y2mate page URL
-        const fallbackUrl = format === 'mp3'
-            ? `https://www.y2mate.com/download/${videoId}/mp3/${quality}`
-            : `https://www.y2mate.com/download/${videoId}/mp4/${quality}`;
-
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-                success: true,
-                downloadUrl: fallbackUrl,
-                quality: quality,
-                format: format
-            })
-        };
+        throw new Error('Failed to get download link');
 
     } catch (error) {
         console.error('Download error:', error);
-
-        // Return a fallback URL on error
-        const fallbackUrl = format === 'mp3'
-            ? `https://www.y2mate.com/youtube-mp3/${videoId}`
-            : `https://www.y2mate.com/youtube/${videoId}`;
-
         return {
-            statusCode: 200,
+            statusCode: 500,
             headers,
             body: JSON.stringify({
-                success: true,
-                downloadUrl: fallbackUrl,
-                quality: quality,
-                format: format,
-                fallback: true
+                error: 'Failed to generate download link',
+                message: error.message
             })
         };
     }
