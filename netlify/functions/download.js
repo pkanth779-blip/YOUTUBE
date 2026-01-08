@@ -1,11 +1,11 @@
-const fetch = require('node-fetch');
+const ytdl = require('@distube/ytdl-core');
 
 exports.handler = async (event, context) => {
+    // Set headers for streaming
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Content-Type': 'application/json'
+        'Access-Control-Allow-Methods': 'GET, OPTIONS'
     };
 
     if (event.httpMethod === 'OPTIONS') {
@@ -17,36 +17,69 @@ exports.handler = async (event, context) => {
     if (!videoId) {
         return {
             statusCode: 400,
-            headers,
+            headers: { ...headers, 'Content-Type': 'application/json' },
             body: JSON.stringify({ error: 'Missing videoId' })
         };
     }
 
     try {
-        // Simply return SaveFrom.net links - they handle all the complexity
         const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        const downloadUrl = `https://sfrom.net/en1/${encodeURIComponent(youtubeUrl)}`;
 
+        // Validate URL
+        if (!ytdl.validateURL(youtubeUrl)) {
+            return {
+                statusCode: 400,
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ error: 'Invalid YouTube URL' })
+            };
+        }
+
+        // Get video info
+        const info = await ytdl.getInfo(youtubeUrl);
+
+        // Select format based on user preference
+        let selectedFormat;
+
+        if (format === 'mp3') {
+            // Get audio only
+            const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+            selectedFormat = audioFormats.find(f => f.audioBitrate >= parseInt(quality)) || audioFormats[0];
+        } else {
+            // For MP4, get format with both video and audio
+            const formats = ytdl.filterFormats(info.formats, 'videoandaudio');
+            const qualityLabel = quality + 'p';
+      selected Format = formats.find(f => f.qualityLabel?.includes(qualityLabel)) || formats[0];
+        }
+
+        if (!selectedFormat) {
+            return {
+                statusCode: 404,
+                headers: { ...headers, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ error: 'Requested quality not available' })
+            };
+        }
+
+        // Return the direct download URL
         return {
             statusCode: 200,
-            headers,
+            headers: { ...headers, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 success: true,
-                downloadUrl: downloadUrl,
-                quality: quality,
-                format: format,
-                method: 'redirect',
-                note: 'Opens in new tab - auto-deletes after download'
+                downloadUrl: selectedFormat.url,
+                title: info.videoDetails.title,
+                quality: selectedFormat.qualityLabel || `${selectedFormat.audioBitrate}kbps`,
+                mimeType: selectedFormat.mimeType,
+                fileSize: selectedFormat.contentLength
             })
         };
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Download error:', error);
         return {
             statusCode: 500,
-            headers,
+            headers: { ...headers, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                error: 'Failed to generate link',
+                error: 'Failed to process download',
                 message: error.message
             })
         };
