@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Download YouTube videos as MP3 or MP4 easily">
+    <title>YouTube Downloader</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="YT Downloader">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #1a1a1a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #000000;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #666666;
+            font-weight: 300;
+        }
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #e5e5e5;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333333;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 15px;
+            border: 1.5px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            background: #fafafa;
+        }
+
+        input[type="text"]:focus {
+            border-color: #000000;
+            background: #ffffff;
+        }
+
+        input[type="text"]::placeholder {
+            color: #999999;
+        }
+
+        .format-selector {
+            margin-bottom: 28px;
+        }
+
+        .format-selector label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 12px;
+            color: #333333;
+        }
+
+        .format-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .format-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .format-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .format-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #fafafa;
+        }
+
+        .format-option input[type="radio"]:checked+.format-label {
+            border-color: #000000;
+            background: #f5f5f5;
+        }
+
+        .format-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .format-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a1a1a;
+            margin-bottom: 2px;
+        }
+
+        .format-desc {
+            font-size: 11px;
+            color: #666666;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #ffffff;
+            background: #000000;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .download-btn:hover {
+            background: #1a1a1a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .download-btn:active {
+            transform: translateY(0);
+        }
+
+        .download-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-text {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #999999;
+        }
+
+        .error-message {
+            display: none;
+            padding: 12px 16px;
+            background: #fff5f5;
+            border: 1px solid #ffdddd;
+            border-radius: 8px;
+            color: #cc0000;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: shake 0.3s ease;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+            }
+
+            .card {
+                padding: 24px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .format-options {
+                gap: 10px;
+            }
+
+            .format-label {
+                padding: 12px 8px;
+            }
+
+            .format-icon {
+                font-size: 24px;
+            }
+
+            .format-name {
+                font-size: 13px;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .card {
+                padding: 20px;
+            }
+
+            .format-name {
+                font-size: 12px;
+            }
+
+            .format-desc {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>YouTube Downloader</h1>
+            <p>Download videos as MP3 or MP4</p>
+        </div>
+
+        <div class="card">
+            <div class="error-message" id="errorMessage"></div>
+
+            <div class="input-group">
+                <label for="videoUrl">Video URL</label>
+                <div class="input-wrapper">
+                    <input type="text" id="videoUrl" placeholder="Paste YouTube URL here..." autocomplete="off">
+                </div>
+            </div>
+
+            <div class="format-selector">
+                <label>Select Format</label>
+                <div class="format-options">
+                    <div class="format-option">
+                        <input type="radio" id="mp3" name="format" value="mp3">
+                        <label for="mp3" class="format-label">
+                            <div class="format-icon">🎵</div>
+                            <div class="format-name">MP3</div>
+                            <div class="format-desc">Audio Only</div>
+                        </label>
+                    </div>
+                    <div class="format-option">
+                        <input type="radio" id="mp4" name="format" value="mp4" checked>
+                        <label for="mp4" class="format-label">
+                            <div class="format-icon">🎬</div>
+                            <div class="format-name">MP4</div>
+                            <div class="format-desc">Video + Audio</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="download-btn" id="downloadBtn" onclick="handleDownload()">
+                Download
+            </button>
+
+            <div class="info-text">
+                Downloads will open in a new tab
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 4000);
+        }
+
+        function extractVideoId(url) {
+            // Handle various YouTube URL formats
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+                /^([a-zA-Z0-9_-]{11})$/
+            ];
+
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match && match[1]) {
+                    return match[1];
+                }
+            }
+            return null;
+        }
+
+        function handleDownload() {
+            const urlInput = document.getElementById('videoUrl');
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                showError('Please enter a YouTube URL');
+                return;
+            }
+
+            const videoId = extractVideoId(url);
+            if (!videoId) {
+                showError('Invalid YouTube URL. Please check and try again.');
+                return;
+            }
+
+            // Get selected format
+            const format = document.querySelector('input[name="format"]:checked').value;
+
+            // Using SaveFrom.net - a reliable download service
+            // This service supports both MP3 and MP4 downloads
+            const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            const encodedUrl = encodeURIComponent(fullUrl);
+
+            let downloadUrl;
+
+            if (format === 'mp3') {
+                // Redirect to SaveFrom.net with MP3 preference
+                downloadUrl = `https://www.savefrom.net/#url=${encodedUrl}&type=mp3`;
+            } else {
+                // Redirect to SaveFrom.net with MP4 preference
+                downloadUrl = `https://www.savefrom.net/#url=${encodedUrl}`;
+            }
+
+            // Open in new tab/external browser
+            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+
+            // Clear input after successful redirect
+            setTimeout(() => {
+                urlInput.value = '';
+            }, 500);
+        }
+
+        // Allow Enter key to trigger download
+        document.getElementById('videoUrl').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                handleDownload();
+            }
+        });
+
+        // Auto-focus on input when page loads
+        window.addEventListener('load', function () {
+            document.getElementById('videoUrl').focus();
+        });
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+
+</html>
