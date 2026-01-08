@@ -122,6 +122,57 @@
             color: #999999;
         }
 
+        /* Video Preview */
+        .video-preview {
+            display: none;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #f9f9f9;
+            border-radius: 12px;
+            border: 1px solid #e5e5e5;
+        }
+
+        .video-preview.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        .video-info {
+            display: flex;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .video-thumbnail {
+            width: 120px;
+            height: 68px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .video-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .video-author {
+            font-size: 12px;
+            color: #666666;
+        }
+
         .format-selector {
             margin-bottom: 24px;
         }
@@ -248,7 +299,6 @@
             transition: all 0.2s ease;
             font-family: inherit;
             position: relative;
-            overflow: hidden;
         }
 
         .download-btn:hover:not(:disabled) {
@@ -372,14 +422,13 @@
                 font-size: 13px;
             }
 
-            .quality-options {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 8px;
+            .video-thumbnail {
+                width: 90px;
+                height: 51px;
             }
 
-            .quality-btn {
-                padding: 10px 8px;
-                font-size: 12px;
+            .video-title {
+                font-size: 13px;
             }
         }
 
@@ -417,6 +466,17 @@
                 </div>
             </div>
 
+            <!-- Video Preview -->
+            <div class="video-preview" id="videoPreview">
+                <div class="video-info">
+                    <img src="" alt="Video thumbnail" class="video-thumbnail" id="videoThumbnail">
+                    <div class="video-details">
+                        <div class="video-title" id="videoTitle"></div>
+                        <div class="video-author" id="videoAuthor"></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="format-selector">
                 <label>Select Format</label>
                 <div class="format-options">
@@ -441,26 +501,25 @@
 
             <div class="quality-selector" id="qualitySelector">
                 <label id="qualityLabel">Select Quality</label>
-                <div class="quality-options" id="qualityOptions">
-                    <!-- Quality options will be inserted here -->
-                </div>
+                <div class="quality-options" id="qualityOptions"></div>
             </div>
 
             <button class="download-btn" id="downloadBtn" onclick="handleDownload()">
                 <div class="spinner"></div>
-                <span class="btn-text">Get Download Link</span>
+                <span class="btn-text">Download</span>
             </button>
 
             <div class="info-text">
-                Select format and quality, then click to get download link
+                Direct download in external browser
             </div>
         </div>
     </div>
 
     <script>
         let selectedQuality = null;
+        let videoInfo = null;
+        let debounceTimer = null;
 
-        // Quality options for different formats
         const qualities = {
             mp4: [
                 { value: '1080', label: '1080p HD', desc: 'High Quality' },
@@ -475,7 +534,47 @@
             ]
         };
 
-        // Show/hide quality selector based on format
+        // Auto-fetch video info when URL is pasted
+        document.getElementById('videoUrl').addEventListener('input', function (e) {
+            const url = e.target.value.trim();
+
+            clearTimeout(debounceTimer);
+
+            if (!url) {
+                document.getElementById('videoPreview').classList.remove('show');
+                return;
+            }
+
+            // De bounce to avoid too many API calls
+            debounceTimer = setTimeout(() => {
+                fetchVideoInfo(url);
+            }, 800);
+        });
+
+        async function fetchVideoInfo(url) {
+            try {
+                const response = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    videoInfo = data;
+
+                    // Show video preview
+                    document.getElementById('videoThumbnail').src = data.thumbnailHq;
+                    document.getElementById('videoTitle').textContent = data.title;
+                    document.getElementById('videoAuthor').textContent = data.author;
+                    document.getElementById('videoPreview').classList.add('show');
+
+                    showMessage('success', 'Video loaded successfully!');
+                } else {
+                    throw new Error(data.error || 'Failed to fetch video info');
+                }
+            } catch (error) {
+                console.error('Error fetching video info:', error);
+                document.getElementById('videoPreview').classList.remove('show');
+            }
+        }
+
         document.querySelectorAll('input[name="format"]').forEach(radio => {
             radio.addEventListener('change', function () {
                 updateQualityOptions(this.value);
@@ -490,11 +589,7 @@
             qualitySelector.classList.add('show');
             qualityOptions.innerHTML = '';
 
-            if (format === 'mp3') {
-                qualityLabel.textContent = 'Select Audio Quality';
-            } else {
-                qualityLabel.textContent = 'Select Video Quality';
-            }
+            qualityLabel.textContent = format === 'mp3' ? 'Select Audio Quality' : 'Select Video Quality';
 
             qualities[format].forEach((quality, index) => {
                 const btn = document.createElement('div');
@@ -507,14 +602,11 @@
                 qualityOptions.appendChild(btn);
             });
 
-            // Auto-select first quality
             selectedQuality = qualities[format][0].value;
         }
 
         function selectQuality(element, value) {
-            document.querySelectorAll('.quality-btn').forEach(btn => {
-                btn.classList.remove('selected');
-            });
+            document.querySelectorAll('.quality-btn').forEach(btn => btn.classList.remove('selected'));
             element.classList.add('selected');
             selectedQuality = value;
         }
@@ -533,38 +625,15 @@
             } else {
                 successDiv.textContent = message;
                 successDiv.classList.add('show');
-                setTimeout(() => successDiv.classList.remove('show'), 5000);
+                setTimeout(() => successDiv.classList.remove('show'), 3000);
             }
-        }
-
-        function extractVideoId(url) {
-            const patterns = [
-                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-                /^([a-zA-Z0-9_-]{11})$/
-            ];
-
-            for (const pattern of patterns) {
-                const match = url.match(pattern);
-                if (match && match[1]) {
-                    return match[1];
-                }
-            }
-            return null;
         }
 
         async function handleDownload() {
-            const urlInput = document.getElementById('videoUrl');
-            const url = urlInput.value.trim();
             const downloadBtn = document.getElementById('downloadBtn');
 
-            if (!url) {
-                showMessage('error', 'Please enter a YouTube URL');
-                return;
-            }
-
-            const videoId = extractVideoId(url);
-            if (!videoId) {
-                showMessage('error', 'Invalid YouTube URL. Please check and try again.');
+            if (!videoInfo) {
+                showMessage('error', 'Please enter a valid YouTube URL first');
                 return;
             }
 
@@ -575,77 +644,59 @@
 
             const format = document.querySelector('input[name="format"]:checked').value;
 
-            // Show loading state
             downloadBtn.disabled = true;
             downloadBtn.classList.add('loading');
 
             try {
-                // Using Y2Mate API alternative - construct direct download link
-                const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                // Generate download link using Cobalt API (free, no redirect)
+                const apiUrl = `https://api.cobalt.tools/api/json`;
 
-                // Multiple API options for better reliability
-                let downloadUrl;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        url: `https://www.youtube.com/watch?v=${videoInfo.videoId}`,
+                        vCodec: format === 'mp4' ? 'h264' : undefined,
+                        vQuality: format === 'mp4' ? selectedQuality : undefined,
+                        aFormat: format === 'mp3' ? 'mp3' : 'best',
+                        filenamePattern: 'classic',
+                        isAudioOnly: format === 'mp3'
+                    })
+                });
 
-                if (format === 'mp3') {
-                    // For MP3, use ytmp3.cc or similar service
-                    downloadUrl = `https://www.yt1s.com/api/ajaxSearch/index`;
+                const data = await response.json();
 
-                    // Alternative: direct download services
-                    const alternatives = [
-                        `https://www.y2mate.com/youtube-mp3/${videoId}`,
-                        `https://ytmp3.cc/en13/${videoId}/`,
-                        `https://www.mp3juices.cc/download/${youtubeUrl}`
-                    ];
-
-                    // Try with SaveFrom.net with quality parameter
-                    downloadUrl = `https://www.savefrom.net/#url=${encodeURIComponent(youtubeUrl)}&type=mp3&quality=${selectedQuality}`;
+                if (data.status === 'redirect' || data.status === 'stream') {
+                    // Open download link in external browser
+                    const downloadLink = data.url;
+                    window.open(downloadLink, '_blank', 'noopener,noreferrer');
+                    showMessage('success', `Download started! Opening in external browser...`);
                 } else {
-                    // For MP4, construct URL with quality
-                    downloadUrl = `https://www.savefrom.net/#url=${encodeURIComponent(youtubeUrl)}&type=mp4&quality=${selectedQuality}`;
+                    throw new Error(data.text || 'Failed to generate download link');
                 }
 
-                // Open download in new tab
-                window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-
-                showMessage('success', `Opening download link for ${format.toUpperCase()} (${selectedQuality}${format === 'mp3' ? 'kbps' : 'p'})...`);
-
-                // Clear input
-                setTimeout(() => {
-                    urlInput.value = '';
-                }, 1000);
-
             } catch (error) {
-                showMessage('error', 'Failed to generate download link. Please try again.');
                 console.error('Download error:', error);
+                showMessage('error', 'Failed to generate download link. Please try again.');
             } finally {
                 downloadBtn.disabled = false;
                 downloadBtn.classList.remove('loading');
             }
         }
 
-        // Allow Enter key to trigger download
-        document.getElementById('videoUrl').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                handleDownload();
-            }
-        });
-
-        // Auto-focus and initialize quality options
         window.addEventListener('load', function () {
             document.getElementById('videoUrl').focus();
-            updateQualityOptions('mp4'); // Initialize with MP4 quality options
+            updateQualityOptions('mp4');
         });
 
-        // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('Service Worker registered successfully:', registration.scope);
-                    })
-                    .catch((error) => {
-                        console.log('Service Worker registration failed:', error);
-                    });
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed'));
             });
         }
     </script>
