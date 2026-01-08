@@ -701,27 +701,28 @@
             downloadBtn.classList.add('loading');
 
             try {
-                const youtubeUrl = `https://www.youtube.com/watch?v=${videoInfo.videoId}`;
+                // Call backend API to get direct download link
+                const response = await fetch(`/api/download?videoId=${videoInfo.videoId}&quality=${selectedQuality}&format=${format}`);
+                const data = await response.json();
 
-                // Use y2mate.com for downloads (opens in new tab)
-                let downloadUrl;
+                if (data.success && data.downloadUrl) {
+                    // Create a hidden link and click it to trigger download
+                    const link = document.createElement('a');
+                    link.href = data.downloadUrl;
+                    link.download = `${videoInfo.title}.${format === 'mp3' ? 'mp3' : 'mp4'}`;
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
 
-                if (format === 'mp3') {
-                    // For MP3 downloads
-                    downloadUrl = `https://www.y2mate.com/youtube-mp3/${videoInfo.videoId}`;
+                    showMessage('success', `Downloading ${format.toUpperCase()} (${data.quality})...`);
                 } else {
-                    // For MP4 downloads
-                    downloadUrl = `https://www.y2mate.com/youtube/${videoInfo.videoId}`;
+                    throw new Error(data.error || 'Failed to get download link');
                 }
-
-                // Open download page in external browser
-                window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-
-                showMessage('success', `Opening download page for ${format.toUpperCase()} (${selectedQuality}${format === 'mp3' ? 'kbps' : 'p'})...`);
 
             } catch (error) {
                 console.error('Download error:', error);
-                showMessage('error', 'Failed to open download page. Please try again.');
+                showMessage('error', 'Failed to start download. Please try again.');
             } finally {
                 downloadBtn.disabled = false;
                 downloadBtn.classList.remove('loading');
