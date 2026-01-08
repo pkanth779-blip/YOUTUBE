@@ -72,6 +72,32 @@
             font-weight: 300;
         }
 
+        .animated-text {
+            min-height: 20px;
+            display: inline-block;
+        }
+
+        .cursor {
+            display: inline-block;
+            background-color: #666666;
+            width: 2px;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            49% {
+                opacity: 1;
+            }
+
+            50%,
+            100% {
+                opacity: 0;
+            }
+        }
+
         .card {
             background: #ffffff;
             border: 1px solid #e5e5e5;
@@ -452,7 +478,10 @@
     <div class="container">
         <div class="header">
             <h1>YouTube Downloader</h1>
-            <p>Download videos with quality options</p>
+            <p class="animated-text">
+                <span id="typingText"></span>
+                <span class="cursor">|</span>
+            </p>
         </div>
 
         <div class="card">
@@ -690,7 +719,55 @@
         window.addEventListener('load', function () {
             document.getElementById('videoUrl').focus();
             updateQualityOptions('mp4');
+            startTypingAnimation();
         });
+
+        // Typing Animation
+        function startTypingAnimation() {
+            const phrases = [
+                "Best Video Downloader",
+                "Fast & Reliable Downloads",
+                "High Quality MP3 & MP4",
+                "Download with One Click",
+                "No Ads, No Tracking",
+                "100% Free Forever"
+            ];
+
+            let phraseIndex = 0;
+            let charIndex = 0;
+            let isDeleting = false;
+            const typingSpeed = 100;
+            const deletingSpeed = 50;
+            const pauseTime = 2000;
+
+            const typingElement = document.getElementById('typingText');
+
+            function type() {
+                const currentPhrase = phrases[phraseIndex];
+
+                if (isDeleting) {
+                    typingElement.textContent = currentPhrase.substring(0, charIndex - 1);
+                    charIndex--;
+                } else {
+                    typingElement.textContent = currentPhrase.substring(0, charIndex + 1);
+                    charIndex++;
+                }
+
+                let speed = isDeleting ? deletingSpeed : typingSpeed;
+
+                if (!isDeleting && charIndex === currentPhrase.length) {
+                    speed = pauseTime;
+                    isDeleting = true;
+                } else if (isDeleting && charIndex === 0) {
+                    isDeleting = false;
+                    phraseIndex = (phraseIndex + 1) % phrases.length;
+                }
+
+                setTimeout(type, speed);
+            }
+
+            type();
+        }
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
