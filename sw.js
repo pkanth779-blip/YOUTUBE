@@ -1,4 +1,5 @@
-const CACHE_NAME = 'youtube-downloader-v3';
+const CACHE_VERSION = 'v4-' + Date.now();
+const CACHE_NAME = 'youtube-downloader-' + CACHE_VERSION;
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,23 +8,25 @@ const urlsToCache = [
   '/icon-512.png'
 ];
 
-// Install event - cache resources
+// Install event - cache resources and skip waiting
 self.addEventListener('install', (event) => {
+  console.log('Service Worker installing with cache:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Cache opened');
+        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
-      .catch((error) => {
-        console.log('Cache failed:', error);
+      .then(() => {
+        // Force the waiting service worker to become the active service worker
+        return self.skipWaiting();
       })
   );
-  self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches immediately
 self.addEventListener('activate', (event) => {
+  console.log('Service Worker activating:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -34,44 +37,40 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
+    }).then(() => {
+      // Take control of all pages immediately
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network first, then cache
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
+    // Try network first
+    fetch(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
+        // Clone the response
+        const responseToCache = response.clone();
 
-        // Clone the request
-        const fetchRequest = event.request.clone();
+        // Update cache with new content
+        caches.open(CACHE_NAME)
+          .then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
 
-        return fetch(fetchRequest).then((response) => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-
-          // Clone the response
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        });
+        return response;
       })
       .catch(() => {
-        // Return offline page if available
-        return caches.match('/index.html');
+        // If network fails, try cache
+        return caches.match(event.request);
       })
   );
+});
+
+// Listen for messages from the client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
