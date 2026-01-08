@@ -572,7 +572,7 @@
             </button>
 
             <div class="info-text">
-                High-quality downloads • Fast & Secure
+                Opens download page in new tab
             </div>
         </div>
     </div>
@@ -755,35 +755,22 @@
                 const data = await response.json();
 
                 if (data.success && data.downloadUrl) {
-                    // Show processing message
-                    showMessage('success', 'Preparing your download...');
+                    // Open download page in new tab
+                    window.open(data.downloadUrl, '_blank', 'noopener,noreferrer');
 
-                    // Create invisible iframe for download
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = data.downloadUrl;
-                    document.body.appendChild(iframe);
-
-                    // Show download started message after 2 seconds
-                    setTimeout(() => {
-                        showMessage('success', `Download started! Check your downloads folder.`);
-                        // Remove iframe after 10 seconds
-                        setTimeout(() => {
-                            document.body.removeChild(iframe);
-                        }, 10000);
-                    }, 2000);
+                    showMessage('success', `Opening download page for ${format.toUpperCase()} (${selectedQuality}${format === 'mp3' ? 'kbps' : 'p'})...`);
                 } else {
                     throw new Error(data.error || 'Failed to get download link');
                 }
 
             } catch (error) {
                 console.error('Download error:', error);
-                showMessage('error', 'Failed to start download. Please try again.');
+                showMessage('error', 'Failed to open download page. Please try again.');
             } finally {
                 setTimeout(() => {
                     downloadBtn.disabled = false;
                     downloadBtn.classList.remove('loading');
-                }, 3000);
+                }, 1000);
             }
         }
 
