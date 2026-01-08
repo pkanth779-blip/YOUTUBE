@@ -539,7 +539,7 @@
             </button>
 
             <div class="info-text">
-                Opens download service in new tab
+                Temporary storage - auto-deletes after download
             </div>
         </div>
     </div>
@@ -701,32 +701,31 @@
             downloadBtn.classList.add('loading');
 
             try {
-                const youtubeUrl = `https://www.youtube.com/watch?v=${videoInfo.videoId}`;
+                // Call backend API to get direct download link
+                const response = await fetch(`/api/download?videoId=${videoInfo.videoId}&quality=${selectedQuality}&format=${format}`);
+                const data = await response.json();
 
-                // Use SaveFrom.net - most reliable option
-                let downloadUrl;
+                if (data.success && data.downloadUrl) {
+                    // Create a hidden link and click it to trigger download
+                    const link = document.createElement('a');
+                    link.href = data.downloadUrl;
+                    link.download = `${videoInfo.title}.${format === 'mp3' ? 'm4a' : 'mp4'}`;
+                    link.target = '_blank';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
 
-                if (format === 'mp3') {
-                    // For MP3 - redirect to SaveFrom with audio preference
-                    downloadUrl = `https://sfrom.net/en1/${encodeURIComponent(youtubeUrl)}`;
+                    showMessage('success', `Downloading ${format.toUpperCase()} - auto-deletes after download!`);
                 } else {
-                    // For MP4 - redirect to SaveFrom  
-                    downloadUrl = `https://sfrom.net/en1/${encodeURIComponent(youtubeUrl)}`;
+                    throw new Error(data.error || 'Failed to get download link');
                 }
-
-                // Open in new tab
-                window.open(downloadUrl, '_blank', 'noopener,noreferrer');
-
-                showMessage('success', `Opening download page for ${format.toUpperCase()} (${selectedQuality}${format === 'mp3' ? 'kbps' : 'p'})...`);
 
             } catch (error) {
                 console.error('Download error:', error);
-                showMessage('error', 'Failed to open download page.');
+                showMessage('error', 'Failed to start download. Please try again.');
             } finally {
-                setTimeout(() => {
-                    downloadBtn.disabled = false;
-                    downloadBtn.classList.remove('loading');
-                }, 1000);
+                downloadBtn.disabled = false;
+                downloadBtn.classList.remove('loading');
             }
         }
 
