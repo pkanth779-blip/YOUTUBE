@@ -582,7 +582,29 @@
 
         async function fetchVideoInfo(url) {
             try {
-                const response = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
+                // Extract video ID - handle various URL formats including query parameters
+                const patterns = [
+                    /(?:youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})(?:[&?].*)?/,
+                    /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})(?:[?&].*)?/,
+                    /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})(?:[?&].*)?/,
+                    /^([a-zA-Z0-9_-]{11})$/
+                ];
+
+                let videoId = null;
+                for (const pattern of patterns) {
+                    const match = url.match(pattern);
+                    if (match && match[1]) {
+                        videoId = match[1];
+                        break;
+                    }
+                }
+
+                if (!videoId) {
+                    showMessage('error', 'Invalid YouTube URL');
+                    return;
+                }
+
+                const response = await fetch(`/api/info?url=https://www.youtube.com/watch?v=${videoId}`);
                 const data = await response.json();
 
                 if (data.success) {
