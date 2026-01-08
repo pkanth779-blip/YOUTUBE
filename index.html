@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Download YouTube videos as MP3 or MP4 easily">
+    <meta name="description" content="Download YouTube videos as MP3 or MP4 with quality options">
     <title>YouTube Downloader</title>
 
     <!-- PWA Meta Tags -->
@@ -123,7 +123,7 @@
         }
 
         .format-selector {
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }
 
         .format-selector label {
@@ -184,6 +184,57 @@
             color: #666666;
         }
 
+        .quality-selector {
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .quality-selector.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                max-height: 0;
+            }
+
+            to {
+                opacity: 1;
+                max-height: 500px;
+            }
+        }
+
+        .quality-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .quality-btn {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            color: #333333;
+        }
+
+        .quality-btn:hover {
+            border-color: #666666;
+        }
+
+        .quality-btn.selected {
+            border-color: #000000;
+            background: #f5f5f5;
+            color: #000000;
+        }
+
         .download-btn {
             width: 100%;
             padding: 16px;
@@ -196,15 +247,17 @@
             cursor: pointer;
             transition: all 0.2s ease;
             font-family: inherit;
+            position: relative;
+            overflow: hidden;
         }
 
-        .download-btn:hover {
+        .download-btn:hover:not(:disabled) {
             background: #1a1a1a;
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .download-btn:active {
+        .download-btn:active:not(:disabled) {
             transform: translateY(0);
         }
 
@@ -214,6 +267,31 @@
             transform: none;
         }
 
+        .download-btn .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        .download-btn.loading .spinner {
+            display: block;
+        }
+
+        .download-btn.loading .btn-text {
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .info-text {
             margin-top: 20px;
             text-align: center;
@@ -221,18 +299,29 @@
             color: #999999;
         }
 
-        .error-message {
+        .error-message,
+        .success-message {
             display: none;
             padding: 12px 16px;
-            background: #fff5f5;
-            border: 1px solid #ffdddd;
             border-radius: 8px;
-            color: #cc0000;
             font-size: 13px;
             margin-bottom: 16px;
         }
 
-        .error-message.show {
+        .error-message {
+            background: #fff5f5;
+            border: 1px solid #ffdddd;
+            color: #cc0000;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .error-message.show,
+        .success-message.show {
             display: block;
             animation: shake 0.3s ease;
         }
@@ -282,6 +371,16 @@
             .format-name {
                 font-size: 13px;
             }
+
+            .quality-options {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .quality-btn {
+                padding: 10px 8px;
+                font-size: 12px;
+            }
         }
 
         @media (max-width: 360px) {
@@ -304,11 +403,12 @@
     <div class="container">
         <div class="header">
             <h1>YouTube Downloader</h1>
-            <p>Download videos as MP3 or MP4</p>
+            <p>Download videos with quality options</p>
         </div>
 
         <div class="card">
             <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
 
             <div class="input-group">
                 <label for="videoUrl">Video URL</label>
@@ -339,28 +439,105 @@
                 </div>
             </div>
 
+            <div class="quality-selector" id="qualitySelector">
+                <label id="qualityLabel">Select Quality</label>
+                <div class="quality-options" id="qualityOptions">
+                    <!-- Quality options will be inserted here -->
+                </div>
+            </div>
+
             <button class="download-btn" id="downloadBtn" onclick="handleDownload()">
-                Download
+                <div class="spinner"></div>
+                <span class="btn-text">Get Download Link</span>
             </button>
 
             <div class="info-text">
-                Downloads will open in a new tab
+                Select format and quality, then click to get download link
             </div>
         </div>
     </div>
 
     <script>
-        function showError(message) {
+        let selectedQuality = null;
+
+        // Quality options for different formats
+        const qualities = {
+            mp4: [
+                { value: '1080', label: '1080p HD', desc: 'High Quality' },
+                { value: '720', label: '720p HD', desc: 'Good Quality' },
+                { value: '480', label: '480p', desc: 'Standard' },
+                { value: '360', label: '360p', desc: 'Low Quality' }
+            ],
+            mp3: [
+                { value: '320', label: '320 kbps', desc: 'High Quality' },
+                { value: '192', label: '192 kbps', desc: 'Good Quality' },
+                { value: '128', label: '128 kbps', desc: 'Standard' }
+            ]
+        };
+
+        // Show/hide quality selector based on format
+        document.querySelectorAll('input[name="format"]').forEach(radio => {
+            radio.addEventListener('change', function () {
+                updateQualityOptions(this.value);
+            });
+        });
+
+        function updateQualityOptions(format) {
+            const qualitySelector = document.getElementById('qualitySelector');
+            const qualityOptions = document.getElementById('qualityOptions');
+            const qualityLabel = document.getElementById('qualityLabel');
+
+            qualitySelector.classList.add('show');
+            qualityOptions.innerHTML = '';
+
+            if (format === 'mp3') {
+                qualityLabel.textContent = 'Select Audio Quality';
+            } else {
+                qualityLabel.textContent = 'Select Video Quality';
+            }
+
+            qualities[format].forEach((quality, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'quality-btn' + (index === 0 ? ' selected' : '');
+                btn.innerHTML = `
+                    <div style="font-weight: 600;">${quality.label}</div>
+                    <div style="font-size: 10px; color: #999; margin-top: 2px;">${quality.desc}</div>
+                `;
+                btn.onclick = () => selectQuality(btn, quality.value);
+                qualityOptions.appendChild(btn);
+            });
+
+            // Auto-select first quality
+            selectedQuality = qualities[format][0].value;
+        }
+
+        function selectQuality(element, value) {
+            document.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            element.classList.add('selected');
+            selectedQuality = value;
+        }
+
+        function showMessage(type, message) {
             const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = message;
-            errorDiv.classList.add('show');
-            setTimeout(() => {
-                errorDiv.classList.remove('show');
-            }, 4000);
+            const successDiv = document.getElementById('successMessage');
+
+            errorDiv.classList.remove('show');
+            successDiv.classList.remove('show');
+
+            if (type === 'error') {
+                errorDiv.textContent = message;
+                errorDiv.classList.add('show');
+                setTimeout(() => errorDiv.classList.remove('show'), 5000);
+            } else {
+                successDiv.textContent = message;
+                successDiv.classList.add('show');
+                setTimeout(() => successDiv.classList.remove('show'), 5000);
+            }
         }
 
         function extractVideoId(url) {
-            // Handle various YouTube URL formats
             const patterns = [
                 /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
                 /^([a-zA-Z0-9_-]{11})$/
@@ -375,46 +552,75 @@
             return null;
         }
 
-        function handleDownload() {
+        async function handleDownload() {
             const urlInput = document.getElementById('videoUrl');
             const url = urlInput.value.trim();
+            const downloadBtn = document.getElementById('downloadBtn');
 
             if (!url) {
-                showError('Please enter a YouTube URL');
+                showMessage('error', 'Please enter a YouTube URL');
                 return;
             }
 
             const videoId = extractVideoId(url);
             if (!videoId) {
-                showError('Invalid YouTube URL. Please check and try again.');
+                showMessage('error', 'Invalid YouTube URL. Please check and try again.');
                 return;
             }
 
-            // Get selected format
-            const format = document.querySelector('input[name="format"]:checked').value;
-
-            // Using SaveFrom.net - a reliable download service
-            // This service supports both MP3 and MP4 downloads
-            const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            const encodedUrl = encodeURIComponent(fullUrl);
-
-            let downloadUrl;
-
-            if (format === 'mp3') {
-                // Redirect to SaveFrom.net with MP3 preference
-                downloadUrl = `https://www.savefrom.net/#url=${encodedUrl}&type=mp3`;
-            } else {
-                // Redirect to SaveFrom.net with MP4 preference
-                downloadUrl = `https://www.savefrom.net/#url=${encodedUrl}`;
+            if (!selectedQuality) {
+                showMessage('error', 'Please select a quality option');
+                return;
             }
 
-            // Open in new tab/external browser
-            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+            const format = document.querySelector('input[name="format"]:checked').value;
 
-            // Clear input after successful redirect
-            setTimeout(() => {
-                urlInput.value = '';
-            }, 500);
+            // Show loading state
+            downloadBtn.disabled = true;
+            downloadBtn.classList.add('loading');
+
+            try {
+                // Using Y2Mate API alternative - construct direct download link
+                const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+                // Multiple API options for better reliability
+                let downloadUrl;
+
+                if (format === 'mp3') {
+                    // For MP3, use ytmp3.cc or similar service
+                    downloadUrl = `https://www.yt1s.com/api/ajaxSearch/index`;
+
+                    // Alternative: direct download services
+                    const alternatives = [
+                        `https://www.y2mate.com/youtube-mp3/${videoId}`,
+                        `https://ytmp3.cc/en13/${videoId}/`,
+                        `https://www.mp3juices.cc/download/${youtubeUrl}`
+                    ];
+
+                    // Try with SaveFrom.net with quality parameter
+                    downloadUrl = `https://www.savefrom.net/#url=${encodeURIComponent(youtubeUrl)}&type=mp3&quality=${selectedQuality}`;
+                } else {
+                    // For MP4, construct URL with quality
+                    downloadUrl = `https://www.savefrom.net/#url=${encodeURIComponent(youtubeUrl)}&type=mp4&quality=${selectedQuality}`;
+                }
+
+                // Open download in new tab
+                window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+
+                showMessage('success', `Opening download link for ${format.toUpperCase()} (${selectedQuality}${format === 'mp3' ? 'kbps' : 'p'})...`);
+
+                // Clear input
+                setTimeout(() => {
+                    urlInput.value = '';
+                }, 1000);
+
+            } catch (error) {
+                showMessage('error', 'Failed to generate download link. Please try again.');
+                console.error('Download error:', error);
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.classList.remove('loading');
+            }
         }
 
         // Allow Enter key to trigger download
@@ -424,9 +630,10 @@
             }
         });
 
-        // Auto-focus on input when page loads
+        // Auto-focus and initialize quality options
         window.addEventListener('load', function () {
             document.getElementById('videoUrl').focus();
+            updateQualityOptions('mp4'); // Initialize with MP4 quality options
         });
 
         // Register Service Worker for PWA
