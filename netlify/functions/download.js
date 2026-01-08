@@ -48,7 +48,7 @@ exports.handler = async (event, context) => {
             // For MP4, get format with both video and audio
             const formats = ytdl.filterFormats(info.formats, 'videoandaudio');
             const qualityLabel = quality + 'p';
-      selected Format = formats.find(f => f.qualityLabel?.includes(qualityLabel)) || formats[0];
+            selectedFormat = formats.find(f => f.qualityLabel?.includes(qualityLabel)) || formats[0];
         }
 
         if (!selectedFormat) {
