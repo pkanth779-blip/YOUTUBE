@@ -750,21 +750,28 @@
             downloadBtn.classList.add('loading');
 
             try {
-                // Call backend API to get direct download link
+                // Call backend API
                 const response = await fetch(`/api/download?videoId=${videoInfo.videoId}&quality=${selectedQuality}&format=${format}`);
                 const data = await response.json();
 
                 if (data.success && data.downloadUrl) {
-                    // Create a hidden link and click it to trigger download
-                    const link = document.createElement('a');
-                    link.href = data.downloadUrl;
-                    link.download = `${videoInfo.title}.${format === 'mp3' ? 'm4a' : 'mp4'}`;
-                    link.target = '_blank';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    // Show processing message
+                    showMessage('success', 'Preparing your download...');
 
-                    showMessage('success', `Downloading ${format.toUpperCase()} - auto-deletes after download!`);
+                    // Create invisible iframe for download
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = data.downloadUrl;
+                    document.body.appendChild(iframe);
+
+                    // Show download started message after 2 seconds
+                    setTimeout(() => {
+                        showMessage('success', `Download started! Check your downloads folder.`);
+                        // Remove iframe after 10 seconds
+                        setTimeout(() => {
+                            document.body.removeChild(iframe);
+                        }, 10000);
+                    }, 2000);
                 } else {
                     throw new Error(data.error || 'Failed to get download link');
                 }
@@ -773,8 +780,10 @@
                 console.error('Download error:', error);
                 showMessage('error', 'Failed to start download. Please try again.');
             } finally {
-                downloadBtn.disabled = false;
-                downloadBtn.classList.remove('loading');
+                setTimeout(() => {
+                    downloadBtn.disabled = false;
+                    downloadBtn.classList.remove('loading');
+                }, 3000);
             }
         }
 
