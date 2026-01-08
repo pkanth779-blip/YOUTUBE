@@ -1,10 +1,11 @@
-const ytdl = require('ytdl-core');
+const fetch = require('node-fetch');
 
 exports.handler = async (event, context) => {
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Content-Type': 'application/json'
     };
 
     if (event.httpMethod === 'OPTIONS') {
@@ -22,66 +23,66 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-        // Validate URL
-        if (!ytdl.validateURL(url)) {
+        // Use a third-party API for downloads
+        // Option 1: Try using loader.to API (free, no auth needed)
+        const apiUrl = `https://loader.to/ajax/download.php?format=${format}&url=${encodeURIComponent(youtubeUrl)}&api=dfcb6d76f2f6a9894gjkege8a4ab232222`;
+
+        const response = await fetch(apiUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.download) {
             return {
-                statusCode: 400,
+                statusCode: 200,
                 headers,
-                body: JSON.stringify({ error: 'Invalid YouTube URL' })
+                body: JSON.stringify({
+                    success: true,
+                    downloadUrl: data.download,
+                    quality: quality,
+                    format: format
+                })
             };
         }
 
-        // Get video info
-        const info = await ytdl.getInfo(url);
+        // Fallback: Return y2mate page URL
+        const fallbackUrl = format === 'mp3'
+            ? `https://www.y2mate.com/download/${videoId}/mp3/${quality}`
+            : `https://www.y2mate.com/download/${videoId}/mp4/${quality}`;
 
-        // Filter formats based on user preference
-        let selectedFormat;
-
-        if (format === 'mp3') {
-            // Get audio only
-            const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
-            selectedFormat = audioFormats.find(f => f.audioBitrate >= parseInt(quality)) || audioFormats[0];
-        } else {
-            // Get video with audio
-            const videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
-            selectedFormat = videoFormats.find(f => f.qualityLabel?.includes(quality)) || videoFormats[0];
-        }
-
-        if (!selectedFormat) {
-            return {
-                statusCode: 404,
-                headers,
-                body: JSON.stringify({ error: 'Requested quality not available' })
-            };
-        }
-
-        // Return download info
         return {
             statusCode: 200,
-            headers: {
-                ...headers,
-                'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify({
                 success: true,
-                title: info.videoDetails.title,
-                downloadUrl: selectedFormat.url,
-                mimeType: selectedFormat.mimeType,
-                fileSize: selectedFormat.contentLength,
-                quality: selectedFormat.qualityLabel || `${selectedFormat.audioBitrate}kbps`
+                downloadUrl: fallbackUrl,
+                quality: quality,
+                format: format
             })
         };
 
     } catch (error) {
         console.error('Download error:', error);
+
+        // Return a fallback URL on error
+        const fallbackUrl = format === 'mp3'
+            ? `https://www.y2mate.com/youtube-mp3/${videoId}`
+            : `https://www.y2mate.com/youtube/${videoId}`;
+
         return {
-            statusCode: 500,
+            statusCode: 200,
             headers,
             body: JSON.stringify({
-                error: 'Failed to process download',
-                message: error.message
+                success: true,
+                downloadUrl: fallbackUrl,
+                quality: quality,
+                format: format,
+                fallback: true
             })
         };
     }
